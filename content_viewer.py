@@ -27,7 +27,7 @@ class ContentViewer(QDialog):
         self.text_browser.setFont(fixed_font)
         layout.addWidget(self.text_browser)
 
-        self.resize(600, 400)
+        self.resize(1024, 600)
 
         # Connect search
         self.search_edit.textChanged.connect(self.quick_search)

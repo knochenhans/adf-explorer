@@ -3,8 +3,8 @@ import tempfile
 import zipfile
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import QMimeData, Qt
-from PySide6.QtGui import QDragEnterEvent, QDropEvent
+from PySide6.QtCore import QMimeData, Qt, QSettings
+from PySide6.QtGui import QDragEnterEvent, QDropEvent, QCloseEvent
 from PySide6.QtWidgets import (
     QFileDialog,
     QInputDialog,
@@ -29,21 +29,23 @@ class App(QMainWindow):
         super().__init__()
 
         self.title: str = "ADF Explorer"
-        self.width: int = 640
-        self.height: int = 512
+        self.window_width: int = 640
+        self.window_height: int = 512
 
         self.adf: ADF = ADF(self)
 
-        self.actions: Actions = Actions(self)
+        self.app_actions: Actions = Actions(self)
         self.toolbar: Toolbar = Toolbar(self)
         self.menu: Menu = Menu(self)
         self.path: Path = Path(self)
         self.browser: Browser = Browser(self)
         self.status: Status = Status(self)
+        self.settings: QSettings = QSettings("ADF Explorer", "ADF Explorer")
+        self.menu.loadRecentFiles()
 
-        self.centralWidget: QWidget = QWidget(self)
-        self.setCentralWidget(self.centralWidget)
-        self.layout: QVBoxLayout = QVBoxLayout(self.centralWidget)
+        self.central_widget: QWidget = QWidget(self)
+        self.setCentralWidget(self.central_widget)
+        self.main_layout: QVBoxLayout = QVBoxLayout(self.central_widget)
 
         self.setAcceptDrops(True)  # Enable drag-and-drop
 
@@ -77,10 +79,10 @@ class App(QMainWindow):
         self.browser.deselect()
 
     def enableFileActions(self) -> None:
-        self.actions.enableFileActions()
+        self.app_actions.enableFileActions()
 
     def disableFileActions(self) -> None:
-        self.actions.disableFileActions()
+        self.app_actions.disableFileActions()
 
     def makeDir(self) -> None:
         name, ok = QInputDialog.getText(
@@ -144,9 +146,9 @@ class App(QMainWindow):
         )
 
         if path:
-            self.adf.create(path)
+            self.adf.create(path)  # Type: ignore
 
-    def openAdf(self, path: Optional[str] = None) -> None:
+    def openFile(self, path: Optional[str] = None) -> None:
         if not path:
             path, _ = QFileDialog.getOpenFileName(
                 self,
@@ -162,31 +164,33 @@ class App(QMainWindow):
                 else:
                     self.adf.open(path)
                     self.startBrowsing()
+
+                self.menu.updateRecentFiles([path])
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to open file: {e}")
 
     def startBrowsing(self, path: str = "/") -> None:
-        self.actions.enableAdfActions()
+        self.app_actions.enableAdfActions()
         self.status.setText(self.adf.volumeInfo())
         self.path.enable()
         self.updateWindowTitle()
         self.navigate(path)
 
     def initUI(self) -> None:
-        self.resize(self.width, self.height)
+        self.resize(self.window_width, self.window_height)
         self.updateWindowTitle()
 
         # Add components to the layout
-        self.layout.addWidget(self.toolbar.toolbar)
+        self.main_layout.addWidget(self.toolbar.toolbar)
 
-        splitter: QSplitter = QSplitter(self.centralWidget)
+        splitter: QSplitter = QSplitter(self.central_widget)
         splitter.setOrientation(Qt.Orientation.Vertical)
         splitter.addWidget(self.path.pathWidget())
         splitter.addWidget(self.browser.browserWidget())
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 4)
 
-        self.layout.addWidget(splitter)
+        self.main_layout.addWidget(splitter)
 
         self.show()
 
@@ -205,7 +209,7 @@ class App(QMainWindow):
             for url in mime_data.urls():
                 file_path = url.toLocalFile()
                 if file_path.endswith(".adf") or file_path.endswith(".zip"):
-                    self.openAdf(file_path)
+                    self.openFile(file_path)
                 else:
                     QMessageBox.warning(
                         self, "Invalid File", "Only ADF and ZIP files are supported."
@@ -244,3 +248,8 @@ class App(QMainWindow):
             )
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open ZIP file: {e}")
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self.menu.saveRecentFiles()
+        self.cleanUp()
+        event.accept()
