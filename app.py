@@ -1,7 +1,10 @@
+import os
+import tempfile
+import zipfile
 from typing import Dict, List, Optional
 
 from PySide6.QtCore import QMimeData, Qt
-from PySide6.QtGui import QDropEvent, QDragEnterEvent
+from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QFileDialog,
     QInputDialog,
@@ -118,9 +121,7 @@ class App(QMainWindow):
             QMessageBox.warning(self, "No Selection", "No item selected to extract.")
             return
 
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save File", "", ""
-        )
+        path, _ = QFileDialog.getSaveFileName(self, "Save File", "", "")
 
         if path:
             self.adf.extract(selected_item, path)
@@ -149,17 +150,20 @@ class App(QMainWindow):
         if not path:
             path, _ = QFileDialog.getOpenFileName(
                 self,
-                "Open ADF File",
+                "Open ADF or ZIP File",
                 "",
-                "",
+                "ADF and ZIP Files (*.adf *.zip);;All Files (*)",
             )
 
         if path:
             try:
-                self.adf.open(path)
-                self.startBrowsing()
+                if path.lower().endswith(".zip"):
+                    self.openZipAdf(path)
+                else:
+                    self.adf.open(path)
+                    self.startBrowsing()
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to open ADF file: {e}")
+                QMessageBox.critical(self, "Error", f"Failed to open file: {e}")
 
     def startBrowsing(self, path: str = "/") -> None:
         self.actions.enableAdfActions()
@@ -200,9 +204,43 @@ class App(QMainWindow):
         if mime_data.hasUrls():
             for url in mime_data.urls():
                 file_path = url.toLocalFile()
-                if file_path.endswith(".adf"):
+                if file_path.endswith(".adf") or file_path.endswith(".zip"):
                     self.openAdf(file_path)
                 else:
                     QMessageBox.warning(
-                        self, "Invalid File", "Only ADF files are supported."
+                        self, "Invalid File", "Only ADF and ZIP files are supported."
                     )
+
+    def openZipAdf(self, zip_path: str) -> None:
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                adf_files = [
+                    name for name in zip_ref.namelist() if name.lower().endswith(".adf")
+                ]
+                if not adf_files:
+                    QMessageBox.critical(
+                        self, "Error", "No ADF file found in the ZIP archive."
+                    )
+                    return
+                if len(adf_files) > 1:
+                    selected_file, ok = QInputDialog.getItem(
+                        self,
+                        "Select ADF File",
+                        "Multiple ADF files found. Please select one:",
+                        adf_files,
+                    )
+                    if not ok or not selected_file:
+                        return
+                else:
+                    selected_file = adf_files[0]
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    temp_path = os.path.join(temp_dir, selected_file)
+                    zip_ref.extract(selected_file, temp_dir)
+                    self.adf.open(temp_path)
+                    self.startBrowsing()
+        except zipfile.BadZipFile:
+            QMessageBox.critical(
+                self, "Error", "The selected file is not a valid ZIP archive."
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to open ZIP file: {e}")
