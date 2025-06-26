@@ -1,10 +1,11 @@
-from PyQt5 import QtCore
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QToolBar
 
 
 class Toolbar():
-    def __init__(self, app):
-        self.toolbar = app.addToolBar('Toolbar')
-        self.toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
+    def __init__(self, app: "App"):
+        self.toolbar: QToolBar = app.addToolBar('Toolbar')
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
 
         self.toolbar.addAction(app.actions.createAction)
         self.toolbar.addAction(app.actions.openAction)

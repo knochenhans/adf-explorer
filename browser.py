@@ -1,57 +1,105 @@
-from PyQt5.QtWidgets import QListView, QAbstractItemView
-from PyQt5.QtGui import QIcon, QStandardItemModel, QStandardItem
-from PyQt5.QtCore import Qt
+from typing import TYPE_CHECKING, Dict, List
+
+from PySide6.QtCore import QItemSelection, QModelIndex, Qt
+from PySide6.QtGui import QKeyEvent, QStandardItem, QStandardItemModel
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QDialog,
+    QListView,
+    QStyle,
+    QTextBrowser,
+    QVBoxLayout,
+    QWidget,
+)
+
+if TYPE_CHECKING:
+    from app import App
 
 
-class Browser():
-    def __init__(self, app):
-        self.listViewModel = QStandardItemModel()
+class ContentViewer(QDialog):
+    def __init__(self, parent: QWidget, file_name: str, file_content: str):
+        super().__init__(parent)
+        self.setWindowTitle(f"Viewing: {file_name}")
 
-        self.app = app
+        layout = QVBoxLayout(self)
+        text_browser = QTextBrowser(self)
+        text_browser.setText(file_content)
+        # Set a fixed-width font for hex-like viewing
+        fixed_font = text_browser.font()
+        fixed_font.setFamily("Courier New")  # or "Monospace"
+        fixed_font.setStyleHint(fixed_font.StyleHint.Monospace)
+        text_browser.setFont(fixed_font)
+        layout.addWidget(text_browser)
 
-        self.listView = QListView(app)
-        self.listView.move(15, 145)
-        self.listView.setFixedSize(app.width - 30, app.height - 190)
+        self.resize(600, 400)
+
+
+class Browser:
+    def __init__(self, app: "App"):
+        self.listViewModel: QStandardItemModel = QStandardItemModel()
+
+        self.app: "App" = app
+
+        self.container: QWidget = QWidget(app)
+        layout: QVBoxLayout = QVBoxLayout(self.container)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.listView: QListView = QListView(self.container)
         self.listView.setModel(self.listViewModel)
-        self.listView.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.listView.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.listView.doubleClicked.connect(self.processItem)
         self.listView.keyPressEvent = self.keyPressEvent
         self.listView.selectionModel().selectionChanged.connect(self.selectionChanged)
 
-    def populate(self, entries):
+        layout.addWidget(self.listView)
+
+        self.item: QStandardItem | None = None
+
+    def browserWidget(self) -> QWidget:
+        return self.container
+
+    def populate(self, entries: List[Dict[str, str]]) -> None:
         self.listViewModel.clear()
 
         for entry in entries:
-            item = QStandardItem(QIcon(
-                'icons/' +
-                ('file.png' if entry['type'] == 'file' else 'folder.png')
-            ), entry['name'])
+            icon = self.app.style().standardIcon(
+                QStyle.StandardPixmap.SP_FileIcon
+                if entry["type"] == "file"
+                else QStyle.StandardPixmap.SP_DirIcon
+            )
+            item: QStandardItem = QStandardItem(icon, entry["name"])
 
             item.setData(entry)
             self.listViewModel.appendRow(item)
 
-    def processItem(self):
-        if self.item.data()['type'] == 'dir':
+    def processItem(self) -> None:
+        if self.item and self.item.data()["type"] == "dir":
             self.app.navigateDown(self.selectedItem())
-        else:
-            self.app.extract()
+        elif self.item:
+            file_name: str = self.selectedItem()
+            file_content: str = self.app.adf.extractToMemory(file_name)
 
-    def keyPressEvent(self, event):
-        super(QListView, self.listView).keyPressEvent(event)
+            viewer = ContentViewer(self.app, file_name, file_content)
+            viewer.exec_()
 
-        if event.key() == Qt.Key_Return:
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        QListView.keyPressEvent(self.listView, event)
+
+        if event.key() == Qt.Key.Key_Return:
             self.processItem()
 
-    def deselect(self):
+    def deselect(self) -> None:
         self.item = None
         self.app.disableFileActions()
 
-    def selectedItem(self):
+    def selectedItem(self) -> str | None:
         return self.item.text() if self.item else None
 
-    def selectionChanged(self, selected, deselected):
+    def selectionChanged(
+        self, selected: QItemSelection, deselected: QItemSelection
+    ) -> None:
         if len(selected.indexes()):
-            modelIndex = selected.indexes()[0]
+            modelIndex: QModelIndex = selected.indexes()[0]
 
             self.item = modelIndex.model().item(modelIndex.row())
             self.app.enableFileActions()

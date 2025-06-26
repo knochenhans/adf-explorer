@@ -1,4 +1,6 @@
+from typing import Optional
 from amitools.fs.ADFSVolume import ADFSVolume
+from amitools.fs.ADFSFile import ADFSFile
 from amitools.fs.blkdev.BlkDevFactory import BlkDevFactory
 from amitools.fs.FileName import FileName
 from amitools.fs.Imager import Imager
@@ -10,12 +12,12 @@ import os.path
 class ADF():
     def __init__(self, app):
         self.app = app
-        self.volume = None
+        self.volume: Optional[ADFSVolume] = None
         self.blkdev = None
         self.node = None
-        self.path = None
+        self.path: Optional[str] = None
 
-    def absolutePath(self, name):
+    def absolutePath(self, name: str) -> str:
         return (self.path + '/' if self.path != '/' else '') + name
 
     def create(self, path):
@@ -126,3 +128,17 @@ class ADF():
 
         if self.blkdev:
             self.blkdev.close()
+
+    def extractToMemory(self, name: str) -> str:
+        """Extract the content of a file as a string."""
+        if not self.volume:
+            raise ValueError("No volume is currently open.")
+
+        path = self.absolutePath(name)
+        node = self.volume.get_path_name(make_fsstr(path))
+
+        if isinstance(node, ADFSFile) and node.is_file():
+            data = node.get_file_data()
+            return data.decode('utf-8', errors='replace')
+        else:
+            raise ValueError(f"{name} is not a file.")
