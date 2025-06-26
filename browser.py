@@ -4,34 +4,16 @@ from PySide6.QtCore import QItemSelection, QModelIndex, Qt
 from PySide6.QtGui import QKeyEvent, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QDialog,
     QListView,
     QStyle,
-    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
+from content_viewer import ContentViewer
+
 if TYPE_CHECKING:
     from app import App
-
-
-class ContentViewer(QDialog):
-    def __init__(self, parent: QWidget, file_name: str, file_content: str):
-        super().__init__(parent)
-        self.setWindowTitle(f"Viewing: {file_name}")
-
-        layout = QVBoxLayout(self)
-        text_browser = QTextBrowser(self)
-        text_browser.setText(file_content)
-        # Set a fixed-width font for hex-like viewing
-        fixed_font = text_browser.font()
-        fixed_font.setFamily("Courier New")  # or "Monospace"
-        fixed_font.setStyleHint(fixed_font.StyleHint.Monospace)
-        text_browser.setFont(fixed_font)
-        layout.addWidget(text_browser)
-
-        self.resize(600, 400)
 
 
 class Browser:
@@ -61,7 +43,9 @@ class Browser:
     def populate(self, entries: List[Dict[str, str]]) -> None:
         self.listViewModel.clear()
 
-        for entry in entries:
+        sorted_entries = sorted(entries, key=lambda e: 0 if e["type"] == "dir" else 1)
+
+        for entry in sorted_entries:
             icon = self.app.style().standardIcon(
                 QStyle.StandardPixmap.SP_FileIcon
                 if entry["type"] == "file"
