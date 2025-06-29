@@ -1,7 +1,8 @@
 import string
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeyEvent, QTextCursor
 from PySide6.QtWidgets import QDialog, QLineEdit, QTextBrowser, QVBoxLayout, QWidget
-from PySide6.QtGui import QTextCursor
 
 
 class ContentViewer(QDialog):
@@ -18,7 +19,7 @@ class ContentViewer(QDialog):
 
         self.text_browser = QTextBrowser(self)
         # Filter content to ASCII only
-        ascii_content = ''.join(c for c in file_content if c in string.printable)
+        ascii_content = "".join(c for c in file_content if c in string.printable)
         self.text_browser.setText(ascii_content)
         # Set a fixed-width font for hex-like viewing
         fixed_font = self.text_browser.font()
@@ -38,3 +39,13 @@ class ContentViewer(QDialog):
         if not found and text:
             self.text_browser.moveCursor(QTextCursor.MoveOperation.Start)
             self.text_browser.find(text)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if (
+            event.modifiers() == Qt.KeyboardModifier.ControlModifier
+            and event.key() == Qt.Key.Key_F
+        ):
+            self.search_edit.setFocus()
+            event.accept()
+        else:
+            super().keyPressEvent(event)

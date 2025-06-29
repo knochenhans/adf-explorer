@@ -64,7 +64,7 @@ class App(QMainWindow):
         self.path.setText(path)
 
     def updateBrowser(self, entries: List[Dict[str, str]]) -> None:
-        self.browser.populate(entries)
+        self.browser.populate(entries, self.adf.path)
 
     def parent(self) -> None:
         self.adf.parent()

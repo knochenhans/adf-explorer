@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from PySide6.QtCore import QItemSelection, QModelIndex, Qt
 from PySide6.QtGui import QKeyEvent, QStandardItem, QStandardItemModel
@@ -40,8 +40,19 @@ class Browser:
     def browserWidget(self) -> QWidget:
         return self.container
 
-    def populate(self, entries: List[Dict[str, str]]) -> None:
+    def populate(
+        self, entries: List[Dict[str, str]], current_path: Optional[str] = "/"
+    ) -> None:
         self.listViewModel.clear()
+
+        # Add pseudo-folder for parent directory if not at root
+        if current_path != "/":
+            parent_icon = self.app.style().standardIcon(
+                QStyle.StandardPixmap.SP_ArrowUp
+            )
+            parent_item = QStandardItem(parent_icon, "..")
+            parent_item.setData({"type": "parent", "name": ".."})
+            self.listViewModel.appendRow(parent_item)
 
         sorted_entries = sorted(entries, key=lambda e: 0 if e["type"] == "dir" else 1)
 
@@ -52,19 +63,21 @@ class Browser:
                 else QStyle.StandardPixmap.SP_DirIcon
             )
             item: QStandardItem = QStandardItem(icon, entry["name"])
-
             item.setData(entry)
             self.listViewModel.appendRow(item)
 
     def processItem(self) -> None:
-        if self.item and self.item.data()["type"] == "dir":
-            self.app.navigateDown(self.selectedItem())
-        elif self.item:
-            file_name: str = self.selectedItem()
-            file_content: str = self.app.adf.extractToMemory(file_name)
-
-            viewer = ContentViewer(self.app, file_name, file_content)
-            viewer.exec_()
+        if self.item:
+            data = self.item.data()
+            if data["type"] == "parent":
+                self.app.parent()
+            elif data["type"] == "dir":
+                self.app.navigateDown(self.selectedItem())
+            else:
+                file_name: str = self.selectedItem()
+                file_content: str = self.app.adf.extractToMemory(file_name)
+                viewer = ContentViewer(self.app, file_name, file_content)
+                viewer.exec_()
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         QListView.keyPressEvent(self.listView, event)
